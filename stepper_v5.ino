@@ -16,6 +16,10 @@ float interval = 500;
 float angle = 0;
 float stepperSpeed;
 
+// Define variables for fatigue test
+float max_torque = 0;
+float fatigue_cycles = 0;
+
 // Define test case string
 String test_case = "standard";  // Test case, standard by default
 
@@ -29,8 +33,8 @@ float displacement = 0;
 AccelStepper stepper(1, stepPin, dirPin);
 
 // Message Types
-#define MSG_TYPE_SET_CONFIG str(SET_CFG)  // sets settings for tests
-#define MSG_TYPE_SET_TEST str(SET_TEST)   // dictates start/stop of tests and test type
+String MSG_TYPE_SET_CONFIG = "SET_CFG";  // sets settings for tests
+String MSG_TYPE_SET_TEST = "SET_TEST";   // dictates start/stop of tests and test type
 
 void setup() {
   stepper.setMaxSpeed(1000);
@@ -54,6 +58,7 @@ void readSerialData() {
 }
 
 void processData(String data) {
+  // Accepts strings of the form: msgType; Parameter_1, Value_1; Parameter_2, Value_2; Parameter_n, Value_n;
   int firstCommaIndex = data.indexOf(';');
   String msgType = data.substring(0, firstCommaIndex);
   String keyValuePairs = data.substring(firstCommaIndex + 1);
@@ -85,7 +90,11 @@ void handleStepperConfig(String msgType, String keyValuePairs) {
         float steps_rev = micro_steps_float * ratio;
         angle = (360 / (micro_steps_float * ratio));
         stepperSpeed = steps_rev * rpm_float / 60;
-        stepper.setSpeed(value.toFloat(stepperSpeed));
+        stepper.setSpeed(stepperSpeed);
+      } else if (key == "MT") {  // MT = maxTorque
+        max_torque = value.toFloat();
+      } else if (key == "FC") {  // FC = fatigueCycles}
+        fatigue_cycles = value.toFloat();
       } else {
         Serial.println("Unknown command: " + key);
       }
@@ -136,7 +145,6 @@ void fatigueTest() {
 
 void loop() {
   readSerialData();
-
   if (on_off == "1") {
     // Time Counting
     unsigned long currentMillis = millis();
@@ -157,8 +165,8 @@ void loop() {
       Serial.print(",");
       Serial.print(7);  // Placeholder value for torque
       Serial.print("\n");
-    } else {
-      displacement = 0;
     }
+  } else {
+    displacement = 0;
   }
 }
