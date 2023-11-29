@@ -16,6 +16,10 @@ float interval = 500;
 float angle = 0;
 float stepperSpeed;
 
+// Manual control variables
+float step_time = 500;
+String manual_direction = "off";
+
 // Define variables for fatigue test
 float max_torque = 0;
 float fatigue_cycles = 0;
@@ -35,6 +39,7 @@ AccelStepper stepper(1, stepPin, dirPin);
 // Message Types
 String MSG_TYPE_SET_CONFIG = "SET_CFG";  // sets settings for tests
 String MSG_TYPE_SET_TEST = "SET_TEST";   // dictates start/stop of tests and test type
+String MSG_TYPE_SET_MANUAL = "SET_MC";   // controls manual CW and CCW turning of the stepper
 
 void setup() {
   stepper.setMaxSpeed(1000);
@@ -67,6 +72,8 @@ void processData(String data) {
     handleStepperConfig(msgType, keyValuePairs);
   } else if (msgType == MSG_TYPE_SET_TEST) {
     handleTest(msgType, keyValuePairs);
+  } else if (msgType == MSG_TYPE_SET_MANUAL) {
+    handleManualControl(msgType, keyValuePairs);
   } else {
     Serial.println("Unknown Message Type");
   }
@@ -132,6 +139,40 @@ void handleTest(String msgType, String keyValuePairs) {
     // Update keyValuePairs for the next iteration
     keyValuePairs = keyValuePairs.substring(semicolonIndex + 1);
   }
+  stepper.setSpeed(stepperSpeed);
+}
+
+void handleManualControl(String msgType, String keyValuePairs) {
+  int semicolonIndex = 0;
+  while ((semicolonIndex = keyValuePairs.indexOf(';')) != -1) {
+    String pair = keyValuePairs.substring(0, semicolonIndex);
+    int commaIndex = pair.indexOf(',');
+
+    if (commaIndex != -1) {
+      String key = pair.substring(0, commaIndex);
+      String value = pair.substring(commaIndex + 1);
+
+      // Using abbreviations for keys
+      if (key == "DIR") {  // DIR = direction
+        manual_direction = value;
+      } else if (key == "ST") {  // ST = stepTime
+        step_time = value.toFloat();
+      } else {
+        Serial.println("Unknown command: " + key);
+      }
+    } else {
+      Serial.println("Invalid pair format: " + pair);
+    }
+
+    // Update keyValuePairs for the next iteration
+    keyValuePairs = keyValuePairs.substring(semicolonIndex + 1);
+  }
+  if (manual_direction == "CW") {
+    stepper.setSpeed(stepperSpeed);
+  } else {
+    stepper.setSpeed(-stepperSpeed);
+  }
+  previousMillis = millis();
 }
 
 void standardTest() {
@@ -145,6 +186,15 @@ void fatigueTest() {
 
 void loop() {
   readSerialData();
+
+  if (manual_direction == "CW" || manual_direction == "CCW") {
+    unsigned long currentMillis = millis();
+    stepper.runSpeed();
+    if (currentMillis - previousMillis >= step_time) {
+      previousMillis = currentMillis;
+      manual_direction = "off";
+    }
+  }
   if (on_off == "1") {
     // Time Counting
     unsigned long currentMillis = millis();
