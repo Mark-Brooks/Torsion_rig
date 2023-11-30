@@ -2,19 +2,19 @@
 #include <AccelStepper.h>
 
 // Define Pins
-const int stepPin = 5;
-const int dirPin = 2;
-const int enPin = 8;
-const float ratio = 6;
+const int stepPin = 10;    // pin for controlling the stepping via the driver
+const int dirPin = 8;     // pin for controlling direction of stepper
+const int enPin = 7;      // pin for enabling stepper driver
+const int torquePin = A0;  // pin for reading the voltage proportional to the torque experience by the machine
 
 // Define variables for RPM and microstepping
 float rpm_float = 0;
 float micro_steps_float = 0;
-int stepState = LOW;
 String on_off = "0";
 float interval = 500;
 float angle = 0;
 float stepperSpeed;
+float ratio = 6;
 
 // Manual control variables
 float step_time = 500;
@@ -44,7 +44,7 @@ String MSG_TYPE_SET_MANUAL = "SET_MC";   // controls manual CW and CCW turning o
 void setup() {
   stepper.setMaxSpeed(1000);
   pinMode(enPin, OUTPUT);
-  digitalWrite(enPin, LOW);
+  digitalWrite(enPin, LOW); // enables the stepper driver
 
   Serial.begin(115200);  // Initialize serial communication with a baud rate of 115200.
 }
@@ -92,16 +92,20 @@ void handleStepperConfig(String msgType, String keyValuePairs) {
       // Using abbreviations for keys
       if (key == "MS") {  // MS = microSteps
         micro_steps_float = value.toFloat();
+        Serial.println("Micro steps: " + value);
       } else if (key == "CS") {  // CS = setSpeed
         rpm_float = value.toFloat();
         float steps_rev = micro_steps_float * ratio;
         angle = (360 / (micro_steps_float * ratio));
         stepperSpeed = steps_rev * rpm_float / 60;
         stepper.setSpeed(stepperSpeed);
+        Serial.println("Stepper speed: " + value);
       } else if (key == "MT") {  // MT = maxTorque
         max_torque = value.toFloat();
+        Serial.println("Max torque: " + value);
       } else if (key == "FC") {  // FC = fatigueCycles}
         fatigue_cycles = value.toFloat();
+        Serial.println("Fatigue cycles: " + value);
       } else {
         Serial.println("Unknown command: " + key);
       }
@@ -213,10 +217,12 @@ void loop() {
       previousMillis = currentMillis;
       Serial.print(displacement);
       Serial.print(",");
-      Serial.print(7);  // Placeholder value for torque
+      Serial.print(7);  // Placeholder value for torque, will be changed to a value proportional to the reading from A0
       Serial.print("\n");
     }
-  } else {
+  } else if (on_off == "0") {
     displacement = 0;
+  } else {
+    Serial.println("Error runnings test");
   }
 }
