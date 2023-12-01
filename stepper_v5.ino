@@ -5,7 +5,11 @@
 const int stepPin = 10;    // pin for controlling the stepping via the driver
 const int dirPin = 8;     // pin for controlling direction of stepper
 const int enPin = 7;      // pin for enabling stepper driver
-const int torquePin = A0;  // pin for reading the voltage proportional to the torque experience by the machine
+
+#define torquePin A0  // pin for reading the voltage proportional to the torque experience by the machine
+#define MAX_SCALE_V 0.6
+#define MIN_SCALE_V 0.0
+#define MAX_TORQUE 20.0
 
 // Define variables for RPM and microstepping
 float rpm_float = 0;
@@ -47,6 +51,8 @@ void setup() {
   digitalWrite(enPin, LOW); // enables the stepper driver
 
   Serial.begin(115200);  // Initialize serial communication with a baud rate of 115200.
+  Serial.print("booting...");
+  analogReference(INTERNAL);
 }
 
 void readSerialData() {
@@ -188,6 +194,22 @@ void fatigueTest() {
   // Add code for fatigue test here
 }
 
+float calculateEMA(float newValue, float previousEMA, float smoothingFactor) {
+    return (newValue * smoothingFactor) + (previousEMA * (1.0 - smoothingFactor));
+}
+
+float mapfloat(float x, float in_min, float in_max, float out_min, float out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+float getTorque(){
+  static float value_mapped;
+  float value_mv = float(map(analogRead(torquePin), 0, 1023, 0, 1100));
+  value_mapped = calculateEMA((MAX_TORQUE - mapfloat((MAX_SCALE_V - value_mv), MAX_SCALE_V, MIN_SCALE_V, 0, MAX_TORQUE)/1000.0), value_mapped, 0.15);
+  return value_mapped;
+}
+
 void loop() {
   readSerialData();
 
@@ -200,7 +222,7 @@ void loop() {
     }
   }
   if (on_off == "1") {
-    // Time Counting
+    //Time Counting
     unsigned long currentMillis = millis();
 
     if (test_case == "standard") {
@@ -211,13 +233,13 @@ void loop() {
       Serial.println("Unknown test type: " + test_case);
     }
 
-    if (currentMillis - previousMillis >= 500) {
+    if (currentMillis - previousMillis >= 50) {
       // Recording Position
-      displacement += angle * 0.5 * stepperSpeed;
+      displacement += angle * 0.05 * stepperSpeed;
       previousMillis = currentMillis;
       Serial.print(displacement);
       Serial.print(",");
-      Serial.print(7);  // Placeholder value for torque, will be changed to a value proportional to the reading from A0
+      Serial.print(getTorque());
       Serial.print("\n");
     }
   } else if (on_off == "0") {
