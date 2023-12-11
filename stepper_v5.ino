@@ -2,23 +2,25 @@
 #include <AccelStepper.h>
 
 // Define Pins
-const int stepPin = 10;    // pin for controlling the stepping via the driver
-const int dirPin = 8;     // pin for controlling direction of stepper
-const int enPin = 7;      // pin for enabling stepper driver
+const int stepPin = 10;  // pin for controlling the stepping via the driver
+const int dirPin = 8;    // pin for controlling direction of stepper
+const int enPin = 7;     // pin for enabling stepper driver
 
+// Alessandros boomer #defines
+// Defines pins and values necessary for interpreting voltage as a torque.
 #define torquePin A0  // pin for reading the voltage proportional to the torque experience by the machine
 #define MAX_SCALE_V 0.6
 #define MIN_SCALE_V 0.0
 #define MAX_TORQUE 20.0
 
 // Define variables for RPM and microstepping
-float rpm_float = 0;
-float micro_steps_float = 0;
-String on_off = "0";
-float interval = 500;
-float angle = 0;
-float stepperSpeed;
-float ratio = 6;
+float rpm_float = 0;          // Desired RPM
+float micro_steps_float = 0;  // Microsteps as set on the driver
+String on_off = "0";          // Turns on and off the stepper
+float interval = 50;          // Interval for printing load and position
+float angle = 0;              // degrees
+float stepperSpeed;           // steps per second
+float ratio = 6;              // gear ratio between stepper and chuck
 
 // Manual control variables
 float step_time = 500;
@@ -48,7 +50,7 @@ String MSG_TYPE_SET_MANUAL = "SET_MC";   // controls manual CW and CCW turning o
 void setup() {
   stepper.setMaxSpeed(1000);
   pinMode(enPin, OUTPUT);
-  digitalWrite(enPin, LOW); // enables the stepper driver
+  digitalWrite(enPin, LOW);  // enables the stepper driver
 
   Serial.begin(115200);  // Initialize serial communication with a baud rate of 115200.
   Serial.print("booting...");
@@ -195,18 +197,17 @@ void fatigueTest() {
 }
 
 float calculateEMA(float newValue, float previousEMA, float smoothingFactor) {
-    return (newValue * smoothingFactor) + (previousEMA * (1.0 - smoothingFactor));
+  return (newValue * smoothingFactor) + (previousEMA * (1.0 - smoothingFactor));
 }
 
-float mapfloat(float x, float in_min, float in_max, float out_min, float out_max)
-{
+float mapfloat(float x, float in_min, float in_max, float out_min, float out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
-float getTorque(){
+float getTorque() {
   static float value_mapped;
   float value_mv = float(map(analogRead(torquePin), 0, 1023, 0, 1100));
-  value_mapped = calculateEMA((MAX_TORQUE - mapfloat((MAX_SCALE_V - value_mv), MAX_SCALE_V, MIN_SCALE_V, 0, MAX_TORQUE)/1000.0), value_mapped, 0.15);
+  value_mapped = calculateEMA((MAX_TORQUE - mapfloat((MAX_SCALE_V - value_mv), MAX_SCALE_V, MIN_SCALE_V, 0, MAX_TORQUE) / 1000.0), value_mapped, 0.15);
   return value_mapped;
 }
 
@@ -221,6 +222,7 @@ void loop() {
       manual_direction = "off";
     }
   }
+  
   if (on_off == "1") {
     //Time Counting
     unsigned long currentMillis = millis();
@@ -233,9 +235,9 @@ void loop() {
       Serial.println("Unknown test type: " + test_case);
     }
 
-    if (currentMillis - previousMillis >= 50) {
+    if (currentMillis - previousMillis >= interval) {
       // Recording Position
-      displacement += angle * 0.05 * stepperSpeed;
+      displacement += angle * (interval / 1000) * stepperSpeed;
       previousMillis = currentMillis;
       Serial.print(displacement);
       Serial.print(",");
@@ -245,6 +247,6 @@ void loop() {
   } else if (on_off == "0") {
     displacement = 0;
   } else {
-    Serial.println("Error runnings test");
+    Serial.println("Error running test");
   }
 }
